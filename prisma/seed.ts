@@ -1,49 +1,23 @@
-import { existsSync, readFileSync } from "node:fs";
-
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
 
 import { hashPassword } from "../src/lib/password";
 
 const databaseUrl = process.env.DATABASE_URL ?? "mysql://root:root@localhost:3306/forum_hideout";
+
 const prisma = new PrismaClient({
-  adapter: new PrismaMariaDb(getDatabaseConfig(databaseUrl)),
+  adapter: new PrismaMariaDb(getDatabaseUrl(databaseUrl)),
 });
 
-function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof PrismaMariaDb>[0] {
+function getDatabaseUrl(databaseUrl: string) {
   const url = new URL(databaseUrl);
-  const wantsTls =
-    url.searchParams.has("sslaccept") ||
-    url.searchParams.get("ssl-mode") === "REQUIRED" ||
-    process.env.DATABASE_SSL === "true" ||
-    process.env.TIDB_SSL === "true" ||
-    url.hostname.includes("aivencloud.com") ||
-    url.hostname.includes("tidbcloud.com");
 
-  if (!wantsTls) return databaseUrl;
+  url.searchParams.set("connectionLimit", process.env.DATABASE_CONNECTION_LIMIT ?? "5");
+  url.searchParams.set("connectTimeout", process.env.DATABASE_CONNECT_TIMEOUT ?? "10000");
+  url.searchParams.set("acquireTimeout", process.env.DATABASE_POOL_TIMEOUT ?? "10000");
+  url.searchParams.set("initializationTimeout", process.env.DATABASE_POOL_TIMEOUT ?? "10000");
 
-  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(/\\n/g, "\n");
-  const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
-  const caFromFile =
-    caPath && existsSync(caPath)
-      ? readFileSync(caPath, "utf8")
-      : undefined;
-  const ca = caFromEnv ?? caFromFile;
-  const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false";
-
-  return {
-    host: url.hostname,
-    port: url.port ? Number(url.port) : 3306,
-    user: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
-    database: url.pathname.replace(/^\//, ""),
-    connectionLimit: Number(process.env.DATABASE_CONNECTION_LIMIT ?? 2),
-    connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
-    acquireTimeout: Number(process.env.DATABASE_POOL_TIMEOUT ?? 30000),
-    initializationTimeout: Number(process.env.DATABASE_POOL_TIMEOUT ?? 30000),
-    minimumIdle: 0,
-    ssl: ca ? { ca, rejectUnauthorized } : { rejectUnauthorized },
-  };
+  return url.toString();
 }
 
 async function main() {
@@ -105,8 +79,7 @@ async function main() {
     create: {
       slug: "bienvenidos-al-foro-hideout",
       title: "Bienvenidos al Foro Hideout",
-      body:
-        "Este espacio queda listo para organizar avisos, soporte, sugerencias y conversaciones de la comunidad.",
+      body: "Este espacio queda listo para organizar avisos, soporte, sugerencias y conversaciones de la comunidad.",
       pinned: true,
       authorId: staff.id,
       categoryId: announcements.id,

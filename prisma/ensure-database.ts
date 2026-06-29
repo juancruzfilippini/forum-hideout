@@ -12,7 +12,7 @@ const parsed = new URL(databaseUrl);
 
 if (!["mysql:", "mariadb:"].includes(parsed.protocol)) {
   throw new Error(
-    `DATABASE_URL must use mysql:// or mariadb:// for this Laragon setup. Current protocol: ${parsed.protocol}`,
+    `DATABASE_URL must use mysql:// or mariadb://. Current protocol: ${parsed.protocol}`,
   );
 }
 
@@ -28,32 +28,28 @@ main().catch((error: unknown) => {
 });
 
 async function main() {
-  const wantsTls =
-    parsed.searchParams.has("sslaccept") ||
-    parsed.searchParams.get("ssl-mode") === "REQUIRED" ||
-    process.env.DATABASE_SSL === "true" ||
-    parsed.hostname.includes("aivencloud.com") ||
-    parsed.hostname.includes("tidbcloud.com");
-  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(/\\n/g, "\n");
-  const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
-  const caFromFile = caPath && existsSync(caPath) ? readFileSync(caPath, "utf8") : undefined;
-  const ca = caFromEnv ?? caFromFile;
-  const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false";
-
   const connection = await mariadb.createConnection({
     host: parsed.hostname,
     port: parsed.port ? Number(parsed.port) : 3306,
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
-    connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
+    connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 10000),
     multipleStatements: false,
-    ...(wantsTls ? { ssl: ca ? { ca, rejectUnauthorized } : { rejectUnauthorized } } : {}),
   });
 
   try {
-    await connection.query(
-      `CREATE DATABASE IF NOT EXISTS \`${database.replaceAll("`", "``")}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+    const rows = await connection.query(
+      "SELECT SCHEMA_NAME AS name FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?",
+      [database],
     );
+    const databaseExists = Array.isArray(rows) && rows.length > 0;
+
+    if (!databaseExists) {
+      await connection.query(
+        `CREATE DATABASE \`${database.replaceAll("`", "``")}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
+      );
+    }
+
     console.log(`Database ready: ${database}`);
   } finally {
     await connection.end();
