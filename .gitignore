@@ -1,0 +1,28 @@
+# dependencies
+node_modules
+
+# next
+.next
+out
+build
+
+# production
+dist
+
+# env
+.env
+.env*.local
+
+# testing
+coverage
+test-results
+playwright-report
+
+# misc
+.DS_Store
+*.pem
+*.log
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

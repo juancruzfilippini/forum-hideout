@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  MEMBER
+  VIP
+  VIP_PLUS
+  ADMIN
+  ADMIN_PLUS
+  STAFF
+}
+
+enum TopicStatus {
+  OPEN
+  LOCKED
+  ARCHIVED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         UserRole @default(MEMBER)
+  avatarUrl    String?
+  active       Boolean  @default(true)
+  deactivatedAt DateTime?
+  deactivationReason String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions Session[]
+  topics   Topic[]
+  posts    Post[]
+
+  @@index([createdAt])
+  @@index([active])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  topics Topic[]
+
+  @@index([sortOrder])
+}
+
+model Topic {
+  id         String      @id @default(cuid())
+  slug       String      @unique
+  title      String
+  body       String      @db.Text
+  status     TopicStatus @default(OPEN)
+  hiddenReason String?
+  pinned     Boolean     @default(false)
+  views      Int         @default(0)
+  authorId   String
+  categoryId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  author   User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  posts    Post[]
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([pinned, updatedAt])
+  @@index([createdAt])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  body      String   @db.Text
+  hidden    Boolean  @default(false)
+  hiddenReason String?
+  authorId  String
+  topicId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  topic  Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([topicId])
+  @@index([createdAt])
+}
