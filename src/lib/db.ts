@@ -13,17 +13,22 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
   const url = new URL(databaseUrl);
   const wantsTls =
     url.searchParams.has("sslaccept") ||
+    url.searchParams.get("ssl-mode") === "REQUIRED" ||
+    process.env.DATABASE_SSL === "true" ||
     process.env.TIDB_SSL === "true" ||
+    url.hostname.includes("aivencloud.com") ||
     url.hostname.includes("tidbcloud.com");
 
   if (!wantsTls) return databaseUrl;
 
-  const caFromEnv = process.env.TIDB_CA_CERT?.replace(/\\n/g, "\n");
+  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(/\\n/g, "\n");
+  const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
   const caFromFile =
-    process.env.TIDB_CA_PATH && existsSync(process.env.TIDB_CA_PATH)
-      ? readFileSync(process.env.TIDB_CA_PATH, "utf8")
+    caPath && existsSync(caPath)
+      ? readFileSync(caPath, "utf8")
       : undefined;
   const ca = caFromEnv ?? caFromFile;
+  const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false";
 
   return {
     host: url.hostname,
@@ -33,7 +38,7 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
     database: url.pathname.replace(/^\//, ""),
     connectionLimit: Number(process.env.DATABASE_CONNECTION_LIMIT ?? 5),
     connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
-    ssl: ca ? { ca, rejectUnauthorized: true } : true,
+    ssl: ca ? { ca, rejectUnauthorized } : { rejectUnauthorized },
   };
 }
 
