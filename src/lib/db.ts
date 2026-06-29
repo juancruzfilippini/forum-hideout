@@ -36,8 +36,11 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ""),
-    connectionLimit: Number(process.env.DATABASE_CONNECTION_LIMIT ?? 5),
+    connectionLimit: Number(process.env.DATABASE_CONNECTION_LIMIT ?? 2),
     connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
+    acquireTimeout: Number(process.env.DATABASE_POOL_TIMEOUT ?? 30000),
+    initializationTimeout: Number(process.env.DATABASE_POOL_TIMEOUT ?? 30000),
+    minimumIdle: 0,
     ssl: ca ? { ca, rejectUnauthorized } : { rejectUnauthorized },
   };
 }
