@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@prisma/client";
@@ -20,7 +20,10 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
   if (!wantsTls) return databaseUrl;
 
   const caFromEnv = process.env.TIDB_CA_CERT?.replace(/\\n/g, "\n");
-  const caFromFile = process.env.TIDB_CA_PATH ? readFileSync(process.env.TIDB_CA_PATH, "utf8") : undefined;
+  const caFromFile =
+    process.env.TIDB_CA_PATH && existsSync(process.env.TIDB_CA_PATH)
+      ? readFileSync(process.env.TIDB_CA_PATH, "utf8")
+      : undefined;
   const ca = caFromEnv ?? caFromFile;
 
   return {
