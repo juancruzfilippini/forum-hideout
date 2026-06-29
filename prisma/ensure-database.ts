@@ -28,12 +28,26 @@ main().catch((error: unknown) => {
 });
 
 async function main() {
+  const wantsTls =
+    parsed.searchParams.has("sslaccept") ||
+    parsed.searchParams.get("ssl-mode") === "REQUIRED" ||
+    process.env.DATABASE_SSL === "true" ||
+    parsed.hostname.includes("aivencloud.com") ||
+    parsed.hostname.includes("tidbcloud.com");
+  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(/\\n/g, "\n");
+  const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
+  const caFromFile = caPath && existsSync(caPath) ? readFileSync(caPath, "utf8") : undefined;
+  const ca = caFromEnv ?? caFromFile;
+  const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false";
+
   const connection = await mariadb.createConnection({
     host: parsed.hostname,
     port: parsed.port ? Number(parsed.port) : 3306,
     user: decodeURIComponent(parsed.username),
     password: decodeURIComponent(parsed.password),
+    connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
     multipleStatements: false,
+    ...(wantsTls ? { ssl: ca ? { ca, rejectUnauthorized } : { rejectUnauthorized } } : {}),
   });
 
   try {
