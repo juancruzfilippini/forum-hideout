@@ -9,6 +9,26 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+function normalizeCaCertificate(value: string | undefined) {
+  let certificate = value?.trim();
+
+  if (!certificate) return undefined;
+
+  if (
+    (certificate.startsWith('"') && certificate.endsWith('"')) ||
+    (certificate.startsWith("'") && certificate.endsWith("'"))
+  ) {
+    certificate = certificate.slice(1, -1).trim();
+  }
+
+  return certificate
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+}
+
 function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof PrismaMariaDb>[0] {
   const url = new URL(databaseUrl);
   const wantsTls =
@@ -21,12 +41,12 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
 
   if (!wantsTls) return databaseUrl;
 
-  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(
-    /\\n/g,
-    "\n",
+  const caFromEnv = normalizeCaCertificate(
+    process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT,
   );
   const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
-  const caFromFile = caPath && existsSync(caPath) ? readFileSync(caPath, "utf8") : undefined;
+  const caFromFile =
+    caPath && existsSync(caPath) ? normalizeCaCertificate(readFileSync(caPath, "utf8")) : undefined;
   const ca = caFromEnv ?? caFromFile;
   const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false";
 

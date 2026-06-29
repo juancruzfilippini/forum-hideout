@@ -24,13 +24,33 @@ type DatabaseConfig = {
   };
 };
 
+function normalizeCaCertificate(value: string | undefined) {
+  let certificate = value?.trim();
+
+  if (!certificate) return undefined;
+
+  if (
+    (certificate.startsWith('"') && certificate.endsWith('"')) ||
+    (certificate.startsWith("'") && certificate.endsWith("'"))
+  ) {
+    certificate = certificate.slice(1, -1).trim();
+  }
+
+  return certificate
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+}
+
 function readCaCertificate() {
-  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(
-    /\\n/g,
-    "\n",
+  const caFromEnv = normalizeCaCertificate(
+    process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT,
   );
   const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
-  const caFromFile = caPath && existsSync(caPath) ? readFileSync(caPath, "utf8") : undefined;
+  const caFromFile =
+    caPath && existsSync(caPath) ? normalizeCaCertificate(readFileSync(caPath, "utf8")) : undefined;
 
   return caFromEnv ?? caFromFile;
 }
@@ -81,6 +101,18 @@ function getErrorInfo(error: unknown) {
   };
 }
 
+function getCaInfo(config: DatabaseConfig | undefined) {
+  const ca = config?.ssl.ca;
+
+  return {
+    configured: Boolean(ca),
+    length: ca?.length ?? 0,
+    startsWithBegin: ca?.startsWith("-----BEGIN CERTIFICATE-----") ?? false,
+    endsWithEnd: ca?.endsWith("-----END CERTIFICATE-----") ?? false,
+    rejectUnauthorized: config?.ssl.rejectUnauthorized ?? null,
+  };
+}
+
 export async function GET(request: Request) {
   const token = process.env.DB_HEALTH_TOKEN;
   const requestUrl = new URL(request.url);
@@ -90,10 +122,11 @@ export async function GET(request: Request) {
   }
 
   const startedAt = Date.now();
+  let config: DatabaseConfig | undefined;
   let connection: Awaited<ReturnType<typeof mariadb.createConnection>> | undefined;
 
   try {
-    const config = getDatabaseConfig();
+    config = getDatabaseConfig();
 
     connection = await mariadb.createConnection(config);
     const rows = await connection.query("SELECT DATABASE() AS db, VERSION() AS version");
@@ -106,8 +139,7 @@ export async function GET(request: Request) {
       database: config.database,
       selectedDatabase: firstRow?.db,
       version: firstRow?.version,
-      hasCa: Boolean(config.ssl.ca),
-      rejectUnauthorized: config.ssl.rejectUnauthorized,
+      ca: getCaInfo(config),
       vercelRegion: process.env.VERCEL_REGION ?? null,
     });
   } catch (error) {
@@ -116,6 +148,7 @@ export async function GET(request: Request) {
         ok: false,
         elapsedMs: Date.now() - startedAt,
         vercelRegion: process.env.VERCEL_REGION ?? null,
+        ca: getCaInfo(config),
         error: getErrorInfo(error),
       },
       { status: 500 },
