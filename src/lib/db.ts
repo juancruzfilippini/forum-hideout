@@ -21,12 +21,12 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
 
   if (!wantsTls) return databaseUrl;
 
-  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(/\\n/g, "\n");
+  const caFromEnv = (process.env.DATABASE_CA_CERT ?? process.env.TIDB_CA_CERT)?.replace(
+    /\\n/g,
+    "\n",
+  );
   const caPath = process.env.DATABASE_CA_PATH ?? process.env.TIDB_CA_PATH;
-  const caFromFile =
-    caPath && existsSync(caPath)
-      ? readFileSync(caPath, "utf8")
-      : undefined;
+  const caFromFile = caPath && existsSync(caPath) ? readFileSync(caPath, "utf8") : undefined;
   const ca = caFromEnv ?? caFromFile;
   const rejectUnauthorized = process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== "false";
 
@@ -36,8 +36,9 @@ function getDatabaseConfig(databaseUrl: string): ConstructorParameters<typeof Pr
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ""),
-    connectionLimit: Number(process.env.DATABASE_CONNECTION_LIMIT ?? 2),
+    connectionLimit: Number(process.env.DATABASE_CONNECTION_LIMIT ?? 1),
     connectTimeout: Number(process.env.DATABASE_CONNECT_TIMEOUT ?? 30000),
+    socketTimeout: Number(process.env.DATABASE_SOCKET_TIMEOUT ?? 30000),
     acquireTimeout: Number(process.env.DATABASE_POOL_TIMEOUT ?? 30000),
     initializationTimeout: Number(process.env.DATABASE_POOL_TIMEOUT ?? 30000),
     minimumIdle: 0,
@@ -53,6 +54,6 @@ export const prisma =
       }))
     : null;
 
-if (process.env.NODE_ENV !== "production" && prisma) {
+if (prisma) {
   globalForPrisma.prisma = prisma;
 }
